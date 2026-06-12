@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import PasswordResetOTP, PhoneOTP, PushDevice
+from .sms import SmsDeliveryError, send_sms
 from .permissions import IsSuperAdmin
 from .serializers import (
     ChangePasswordSerializer,
@@ -174,7 +175,16 @@ class RequestOTPView(generics.GenericAPIView):
             expires_at=expires_at,
         )
 
-        # TODO: Send SMS asynchronously via Celery and SMS provider abstraction.
+        try:
+            send_sms(
+                phone,
+                f"Votre code Tekisa: {code}. Valide {getattr(settings, 'OTP_SMS_EXPIRY_SECONDS', 300) // 60} min.",
+            )
+        except SmsDeliveryError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         return Response({"detail": "OTP sent"}, status=status.HTTP_200_OK)
 
@@ -279,9 +289,16 @@ class PasswordResetRequestView(generics.GenericAPIView):
             code_hash=code_hash,
             expires_at=expires_at,
         )
-        # TODO: envoyer le code par SMS (Celery + fournisseur).
-        if settings.DEBUG:
-            print(f"[TEKISA DEBUG] Password reset code for {phone}: {code}")
+        try:
+            send_sms(
+                phone,
+                f"Code reinitialisation Tekisa: {code}. Ne le partagez pas.",
+            )
+        except SmsDeliveryError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         return Response({"detail": "Code de reinitialisation envoye."}, status=200)
 
 

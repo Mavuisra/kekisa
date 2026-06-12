@@ -21,6 +21,9 @@ jobs:
       - name: Run Django checks
         working-directory: backend
         run: python manage.py check
+      - name: Run Django E2E tests
+        working-directory: backend
+        run: python manage.py test apps.users apps.commerce --verbosity=1
 
   flutter:
     runs-on: ubuntu-latest

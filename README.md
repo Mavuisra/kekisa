@@ -27,6 +27,10 @@ python manage.py runserver
 
 API : `http://127.0.0.1:8000/api/v1/` — docs : `/api/schema/swagger-ui/`
 
+Tests API : `cd backend && python manage.py test apps.users apps.commerce`
+
+SMS (OTP / reset mot de passe) : configurer `SMS_PROVIDER=africastalking` + clés dans `.env`, puis `OTP_SMS_ENABLED=True`.
+
 ### Application Flutter
 
 À la racine du dépôt :

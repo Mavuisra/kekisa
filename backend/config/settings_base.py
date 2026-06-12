@@ -160,6 +160,15 @@ SIMPLE_JWT = {
 OTP_SMS_EXPIRY_SECONDS = int(os.getenv("OTP_SMS_EXPIRY_SECONDS", "300"))
 OTP_SMS_ENABLED = os.getenv("OTP_SMS_ENABLED", "False") == "True"
 
+# SMS — console (dev), africastalking, twilio
+SMS_PROVIDER = os.getenv("SMS_PROVIDER", "console")
+AFRICASTALKING_USERNAME = os.getenv("AFRICASTALKING_USERNAME", "")
+AFRICASTALKING_API_KEY = os.getenv("AFRICASTALKING_API_KEY", "")
+AFRICASTALKING_SENDER = os.getenv("AFRICASTALKING_SENDER", "TEKISA")
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
+TWILIO_FROM_NUMBER = os.getenv("TWILIO_FROM_NUMBER", "")
+
 # CORS : autoriser l'app Flutter (web, mobile) à appeler l'API en dev
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 
