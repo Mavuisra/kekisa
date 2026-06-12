@@ -11,12 +11,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import PasswordResetOTP, PhoneOTP, PushDevice
-from .sms import SmsDeliveryError, send_sms
+from .models import InAppNotification, PasswordResetOTP, PhoneOTP, PushDevice
+from .otp_delivery import OtpDeliveryError, deliver_otp_code, otp_delivery_enabled
 from .permissions import IsSuperAdmin
 from .serializers import (
     ChangePasswordSerializer,
     LoginSerializer,
+    InAppNotificationSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
     RegisterPushDeviceSerializer,
@@ -156,7 +157,7 @@ class RequestOTPView(generics.GenericAPIView):
     serializer_class = RequestOTPSerializer
 
     def post(self, request, *args, **kwargs):
-        if not getattr(settings, "OTP_SMS_ENABLED", False):
+        if not otp_delivery_enabled():
             return Response(
                 {"detail": "Connexion OTP désactivée. Utilisez mot de passe."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -167,7 +168,9 @@ class RequestOTPView(generics.GenericAPIView):
 
         code = f"{randbelow(1000000):06d}"
         code_hash = sha256(code.encode("utf-8")).hexdigest()
-        expires_at = dj_timezone.now() + timedelta(seconds=300)
+        expires_at = dj_timezone.now() + timedelta(
+            seconds=int(getattr(settings, "OTP_SMS_EXPIRY_SECONDS", 300))
+        )
 
         PhoneOTP.objects.create(
             phone=phone,
@@ -175,18 +178,25 @@ class RequestOTPView(generics.GenericAPIView):
             expires_at=expires_at,
         )
 
+        user = User.objects.filter(phone=phone).order_by("id").first()
+        user_email = (user.email if user else "") or ""
         try:
-            send_sms(
-                phone,
-                f"Votre code Tekisa: {code}. Valide {getattr(settings, 'OTP_SMS_EXPIRY_SECONDS', 300) // 60} min.",
+            channel = deliver_otp_code(
+                code=code,
+                phone=phone,
+                email=user_email,
+                purpose="connexion",
             )
-        except SmsDeliveryError as exc:
+        except OtpDeliveryError as exc:
             return Response(
                 {"detail": str(exc)},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
-        return Response({"detail": "OTP sent"}, status=status.HTTP_200_OK)
+        return Response(
+            {"detail": "OTP sent", "channel": channel},
+            status=status.HTTP_200_OK,
+        )
 
 
 class VerifyOTPView(generics.GenericAPIView):
@@ -194,7 +204,7 @@ class VerifyOTPView(generics.GenericAPIView):
     serializer_class = VerifyOTPSerializer
 
     def post(self, request, *args, **kwargs):
-        if not getattr(settings, "OTP_SMS_ENABLED", False):
+        if not otp_delivery_enabled():
             return Response(
                 {"detail": "Connexion OTP désactivée. Utilisez mot de passe."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -259,25 +269,34 @@ class PasswordResetRequestView(generics.GenericAPIView):
     serializer_class = PasswordResetRequestSerializer
 
     def post(self, request, *args, **kwargs):
-        if not getattr(settings, "OTP_SMS_ENABLED", False):
+        if not otp_delivery_enabled():
             return Response(
                 {
                     "detail": (
-                        "Reinitialisation SMS indisponible. "
-                        "Contactez le support Tekisa."
+                        "Reinitialisation indisponible. "
+                        "Configurez EMAIL_HOST (gratuit) ou SMS."
                     )
                 },
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        phone = serializer.validated_data["phone"].strip()
-        user = User.objects.filter(phone=phone).order_by("id").first()
+        phone = serializer.validated_data["phone"]
+        email = serializer.validated_data["email"]
+
+        user = None
+        if phone:
+            user = User.objects.filter(phone=phone).order_by("id").first()
+        if user is None and email:
+            user = User.objects.filter(email__iexact=email).order_by("id").first()
         if user is None:
             return Response(
-                {"detail": "Aucun compte associe a ce numero."},
+                {"detail": "Aucun compte associe a ces identifiants."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        phone = phone or (user.phone or "").strip()
+        email = email or (user.email or "").strip().lower()
 
         code = f"{randbelow(1000000):06d}"
         code_hash = sha256(code.encode("utf-8")).hexdigest()
@@ -286,20 +305,26 @@ class PasswordResetRequestView(generics.GenericAPIView):
         )
         PasswordResetOTP.objects.create(
             phone=phone,
+            email=email,
             code_hash=code_hash,
             expires_at=expires_at,
         )
         try:
-            send_sms(
-                phone,
-                f"Code reinitialisation Tekisa: {code}. Ne le partagez pas.",
+            channel = deliver_otp_code(
+                code=code,
+                phone=phone,
+                email=email,
+                purpose="reinitialisation mot de passe",
             )
-        except SmsDeliveryError as exc:
+        except OtpDeliveryError as exc:
             return Response(
                 {"detail": str(exc)},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-        return Response({"detail": "Code de reinitialisation envoye."}, status=200)
+        return Response(
+            {"detail": "Code de reinitialisation envoye.", "channel": channel},
+            status=200,
+        )
 
 
 class PasswordResetConfirmView(generics.GenericAPIView):
@@ -307,30 +332,39 @@ class PasswordResetConfirmView(generics.GenericAPIView):
     serializer_class = PasswordResetConfirmSerializer
 
     def post(self, request, *args, **kwargs):
-        if not getattr(settings, "OTP_SMS_ENABLED", False):
+        if not otp_delivery_enabled():
             return Response(
-                {"detail": "Reinitialisation SMS indisponible."},
+                {"detail": "Reinitialisation indisponible."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        phone = serializer.validated_data["phone"].strip()
+        phone = serializer.validated_data["phone"]
+        email = serializer.validated_data["email"]
         code = serializer.validated_data["code"].strip()
         new_password = serializer.validated_data["new_password"]
 
-        user = User.objects.filter(phone=phone).order_by("id").first()
+        user = None
+        if phone:
+            user = User.objects.filter(phone=phone).order_by("id").first()
+        if user is None and email:
+            user = User.objects.filter(email__iexact=email).order_by("id").first()
         if user is None:
             return Response(
-                {"detail": "Aucun compte associe a ce numero."},
+                {"detail": "Aucun compte associe a ces identifiants."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        phone = phone or (user.phone or "").strip()
+        email = email or (user.email or "").strip().lower()
+
         now = dj_timezone.now()
-        otp = (
-            PasswordResetOTP.objects.filter(phone=phone, is_used=False)
-            .order_by("-created_at")
-            .first()
-        )
+        otp_qs = PasswordResetOTP.objects.filter(is_used=False)
+        if phone:
+            otp_qs = otp_qs.filter(phone=phone)
+        elif email:
+            otp_qs = otp_qs.filter(email__iexact=email)
+        otp = otp_qs.order_by("-created_at").first()
         if not otp or otp.expires_at < now:
             return Response(
                 {"detail": "Code expire ou invalide."},
@@ -398,4 +432,49 @@ class RegisterPushDeviceView(APIView):
             return Response({"detail": "Token manquant."}, status=400)
         PushDevice.objects.filter(user=request.user, token=token).update(is_active=False)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class InAppNotificationListView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = InAppNotificationSerializer
+
+    def get_queryset(self):
+        return InAppNotification.objects.filter(user=self.request.user)
+
+
+class InAppNotificationUnreadCountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        count = InAppNotification.objects.filter(
+            user=request.user,
+            is_read=False,
+        ).count()
+        return Response({"count": count})
+
+
+class InAppNotificationMarkReadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, notification_id):
+        notification = InAppNotification.objects.filter(
+            id=notification_id,
+            user=request.user,
+        ).first()
+        if notification is None:
+            return Response({"detail": "Notification introuvable."}, status=404)
+        notification.is_read = True
+        notification.save(update_fields=["is_read", "updated_at"])
+        return Response(InAppNotificationSerializer(notification).data)
+
+
+class InAppNotificationMarkAllReadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        updated = InAppNotification.objects.filter(
+            user=request.user,
+            is_read=False,
+        ).update(is_read=True)
+        return Response({"detail": "Toutes les notifications sont lues.", "updated": updated})
 

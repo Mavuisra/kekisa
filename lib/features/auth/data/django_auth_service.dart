@@ -255,19 +255,24 @@ class DjangoAuthService {
     return token != null && token.isNotEmpty;
   }
 
-  Future<void> requestPasswordReset({required String phone}) async {
+  Future<void> requestPasswordReset({String? phone, String? email}) async {
     final client = DioClient(baseUrl: EnvConfig.apiBaseUrl, accessToken: null);
-    await AuthRemoteDataSource(client).requestPasswordReset(phone: phone);
+    await AuthRemoteDataSource(client).requestPasswordReset(
+      phone: phone,
+      email: email,
+    );
   }
 
   Future<void> confirmPasswordReset({
-    required String phone,
+    String? phone,
+    String? email,
     required String code,
     required String newPassword,
   }) async {
     final client = DioClient(baseUrl: EnvConfig.apiBaseUrl, accessToken: null);
     await AuthRemoteDataSource(client).confirmPasswordReset(
       phone: phone,
+      email: email,
       code: code,
       newPassword: newPassword,
     );

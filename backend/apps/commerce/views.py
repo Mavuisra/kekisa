@@ -741,7 +741,30 @@ class SupplierOrderStatusUpdateView(APIView):
         order = SupplierOrder.objects.select_related(
             "merchant",
             "supplier",
+            "supplier__user",
         ).prefetch_related("items").get(id=order.id)
+
+        from apps.users.models import InAppNotification
+        from apps.users.notifications import notify_user
+
+        status_label = dict(SupplierOrder.Status.choices).get(next_status, next_status)
+        if is_supplier_owner:
+            notify_user(
+                order.merchant,
+                title="Commande fournisseur",
+                body=f"Statut mis a jour : {status_label}",
+                category=InAppNotification.Category.ORDER,
+                payload={"order_id": order.id, "status": next_status},
+            )
+        elif is_merchant_owner:
+            notify_user(
+                order.supplier.user,
+                title="Commande client",
+                body=f"Statut mis a jour : {status_label}",
+                category=InAppNotification.Category.ORDER,
+                payload={"order_id": order.id, "status": next_status},
+            )
+
         return Response(SupplierOrderSerializer(order).data)
 
 

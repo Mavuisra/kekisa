@@ -114,11 +114,18 @@ class AuthRemoteDataSource {
     }
   }
 
-  Future<void> requestPasswordReset({required String phone}) async {
+  Future<void> requestPasswordReset({String? phone, String? email}) async {
+    final data = <String, dynamic>{};
+    if (phone != null && phone.trim().isNotEmpty) {
+      data['phone'] = phone.trim();
+    }
+    if (email != null && email.trim().isNotEmpty) {
+      data['email'] = email.trim();
+    }
     try {
       await _client.post<Map<String, dynamic>>(
         ApiEndpoints.passwordResetRequest,
-        data: {'phone': phone},
+        data: data,
         queueIfOffline: false,
       );
     } on DioException catch (e) {
@@ -129,18 +136,25 @@ class AuthRemoteDataSource {
   }
 
   Future<void> confirmPasswordReset({
-    required String phone,
+    String? phone,
+    String? email,
     required String code,
     required String newPassword,
   }) async {
+    final data = <String, dynamic>{
+      'code': code,
+      'new_password': newPassword,
+    };
+    if (phone != null && phone.trim().isNotEmpty) {
+      data['phone'] = phone.trim();
+    }
+    if (email != null && email.trim().isNotEmpty) {
+      data['email'] = email.trim();
+    }
     try {
       await _client.post<Map<String, dynamic>>(
         ApiEndpoints.passwordResetConfirm,
-        data: {
-          'phone': phone,
-          'code': code,
-          'new_password': newPassword,
-        },
+        data: data,
         queueIfOffline: false,
       );
     } on DioException catch (e) {

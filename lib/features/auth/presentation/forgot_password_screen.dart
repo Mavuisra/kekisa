@@ -15,6 +15,7 @@ class ForgotPasswordScreen extends StatefulWidget {
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _phoneCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
   final _codeCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
@@ -22,11 +23,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   int _step = 0;
   bool _loading = false;
   bool _obscure = true;
+  bool _useEmail = true;
   String? _error;
 
   @override
   void dispose() {
     _phoneCtrl.dispose();
+    _emailCtrl.dispose();
     _codeCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmCtrl.dispose();
@@ -48,7 +51,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   Future<void> _requestCode() async {
     final phone = _phoneCtrl.text.trim();
-    if (phone.isEmpty) {
+    final email = _emailCtrl.text.trim();
+    if (_useEmail && email.isEmpty) {
+      setState(() => _error = 'Indiquez votre adresse email.');
+      return;
+    }
+    if (!_useEmail && phone.isEmpty) {
       setState(() => _error = 'Indiquez votre numero de telephone.');
       return;
     }
@@ -57,11 +65,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _error = null;
     });
     try {
-      await djangoAuthService.requestPasswordReset(phone: phone);
+      await djangoAuthService.requestPasswordReset(
+        phone: _useEmail ? null : phone,
+        email: _useEmail ? email : null,
+      );
       if (!mounted) return;
       setState(() => _step = 1);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Code envoye par SMS.')),
+        SnackBar(
+          content: Text(
+            _useEmail
+                ? 'Code envoye par email (gratuit).'
+                : 'Code envoye par SMS.',
+          ),
+        ),
       );
     } on AppException catch (e) {
       setState(() => _error = e.message);
@@ -74,6 +91,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   Future<void> _confirmReset() async {
     final phone = _phoneCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
     final code = _codeCtrl.text.trim();
     final password = _passwordCtrl.text;
     final confirm = _confirmCtrl.text;
@@ -91,7 +109,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
     try {
       await djangoAuthService.confirmPasswordReset(
-        phone: phone,
+        phone: _useEmail ? null : phone,
+        email: _useEmail ? email : null,
         code: code,
         newPassword: password,
       );
@@ -119,20 +138,49 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         children: [
           Text(
             _step == 0
-                ? 'Recevez un code SMS pour reinitialiser votre mot de passe.'
+                ? 'Recevez un code gratuit par email ou par SMS pour reinitialiser votre mot de passe.'
                 : 'Saisissez le code recu et votre nouveau mot de passe.',
             style: theme.textTheme.bodyLarge,
           ),
           const SizedBox(height: 16),
           if (_step == 0) ...[
-            TextField(
-              controller: _phoneCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Telephone (+243...)',
-                prefixIcon: Icon(Icons.phone_outlined),
-              ),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(
+                  value: true,
+                  label: Text('Email'),
+                  icon: Icon(Icons.email_outlined),
+                ),
+                ButtonSegment(
+                  value: false,
+                  label: Text('SMS'),
+                  icon: Icon(Icons.sms_outlined),
+                ),
+              ],
+              selected: {_useEmail},
+              onSelectionChanged: (value) {
+                setState(() => _useEmail = value.first);
+              },
             ),
+            const SizedBox(height: 12),
+            if (_useEmail)
+              TextField(
+                controller: _emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.email_outlined),
+                ),
+              )
+            else
+              TextField(
+                controller: _phoneCtrl,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'Telephone (+243...)',
+                  prefixIcon: Icon(Icons.phone_outlined),
+                ),
+              ),
             const SizedBox(height: 12),
             FilledButton(
               onPressed: _loading ? null : _requestCode,
@@ -148,9 +196,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             TextField(
               controller: _codeCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Code SMS',
-                prefixIcon: Icon(Icons.sms_outlined),
+              decoration: InputDecoration(
+                labelText: _useEmail ? 'Code email' : 'Code SMS',
+                prefixIcon: Icon(
+                  _useEmail ? Icons.email_outlined : Icons.sms_outlined,
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -197,7 +247,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           const Divider(),
           const SizedBox(height: 8),
           const Text(
-            'Si le SMS n\'est pas disponible, contactez le support Tekisa.',
+            'L\'email est gratuit (Gmail SMTP). Le SMS necessite un fournisseur payant.',
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(

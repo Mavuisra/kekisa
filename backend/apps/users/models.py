@@ -65,7 +65,8 @@ class PhoneOTP(TimeStampedModel):
 
 
 class PasswordResetOTP(TimeStampedModel):
-    phone = models.CharField(max_length=32, db_index=True)
+    phone = models.CharField(max_length=32, db_index=True, blank=True, default="")
+    email = models.EmailField(blank=True, default="")
     code_hash = models.CharField(max_length=128)
     expires_at = models.DateTimeField()
     is_used = models.BooleanField(default=False)
@@ -74,6 +75,37 @@ class PasswordResetOTP(TimeStampedModel):
     class Meta:
         indexes = [
             models.Index(fields=["phone", "expires_at"]),
+        ]
+
+
+class InAppNotification(TimeStampedModel):
+    """Notifications in-app gratuites (sans Firebase)."""
+
+    class Category(models.TextChoices):
+        SYSTEM = "system", "System"
+        ORDER = "order", "Order"
+        STOCK = "stock", "Stock"
+        SALE = "sale", "Sale"
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="in_app_notifications",
+    )
+    title = models.CharField(max_length=120)
+    body = models.TextField()
+    category = models.CharField(
+        max_length=32,
+        choices=Category.choices,
+        default=Category.SYSTEM,
+    )
+    is_read = models.BooleanField(default=False)
+    payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["user", "is_read", "created_at"]),
         ]
 
 

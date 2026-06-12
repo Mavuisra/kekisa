@@ -159,6 +159,23 @@ SIMPLE_JWT = {
 
 OTP_SMS_EXPIRY_SECONDS = int(os.getenv("OTP_SMS_EXPIRY_SECONDS", "300"))
 OTP_SMS_ENABLED = os.getenv("OTP_SMS_ENABLED", "False") == "True"
+# OTP gratuit : auto (email si pas de SMS), email, sms, console
+OTP_DELIVERY = os.getenv("OTP_DELIVERY", "auto")
+OTP_EMAIL_ENABLED = os.getenv("OTP_EMAIL_ENABLED", "True") == "True"
+
+# Email SMTP gratuit (Gmail, Brevo, etc.) — OTP et alertes sans Firebase
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend"
+    if DEBUG
+    else "django.core.mail.backends.smtp.EmailBackend",
+)
+EMAIL_HOST = os.getenv("EMAIL_HOST", "")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "Tekisa <noreply@tekisa.local>")
 
 # SMS — console (dev), africastalking, twilio
 SMS_PROVIDER = os.getenv("SMS_PROVIDER", "console")

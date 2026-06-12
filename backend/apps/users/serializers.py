@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from .models import PhoneOTP
+from .models import InAppNotification, PhoneOTP
 
 User = get_user_model()
 
@@ -103,11 +103,24 @@ class PhoneOTPSerializer(serializers.ModelSerializer):
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):
-    phone = serializers.CharField(max_length=32)
+    phone = serializers.CharField(max_length=32, required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        phone = (attrs.get("phone") or "").strip()
+        email = (attrs.get("email") or "").strip().lower()
+        if not phone and not email:
+            raise serializers.ValidationError(
+                "Indiquez un numero de telephone ou une adresse email."
+            )
+        attrs["phone"] = phone
+        attrs["email"] = email
+        return attrs
 
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
-    phone = serializers.CharField(max_length=32)
+    phone = serializers.CharField(max_length=32, required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
     code = serializers.CharField(max_length=8)
     new_password = serializers.CharField(
         max_length=128,
@@ -115,6 +128,17 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         style={"input_type": "password"},
         min_length=6,
     )
+
+    def validate(self, attrs):
+        phone = (attrs.get("phone") or "").strip()
+        email = (attrs.get("email") or "").strip().lower()
+        if not phone and not email:
+            raise serializers.ValidationError(
+                "Indiquez un numero de telephone ou une adresse email."
+            )
+        attrs["phone"] = phone
+        attrs["email"] = email
+        return attrs
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -137,4 +161,19 @@ class RegisterPushDeviceSerializer(serializers.Serializer):
         choices=["android", "ios", "web"],
         default="android",
     )
+
+
+class InAppNotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InAppNotification
+        fields = [
+            "id",
+            "title",
+            "body",
+            "category",
+            "is_read",
+            "payload",
+            "created_at",
+        ]
+        read_only_fields = fields
 

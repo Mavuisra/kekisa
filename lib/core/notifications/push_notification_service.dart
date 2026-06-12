@@ -5,11 +5,11 @@ import 'package:flutter/foundation.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../config/env_config.dart';
 import '../network/dio_client.dart';
+import 'in_app_notification_service.dart';
 
-/// Scaffold notifications push — enregistre le token FCM côté API quand disponible.
+/// Point d'entree notifications — in-app gratuit par defaut (sans Firebase).
 ///
-/// Pour activer FCM : ajouter `google-services.json` / `GoogleService-Info.plist`,
-/// puis brancher `firebase_messaging` dans `init()`.
+/// FCM reste optionnel : ajouter `firebase_messaging` + `google-services.json`.
 class PushNotificationService {
   PushNotificationService._();
 
@@ -20,8 +20,8 @@ class PushNotificationService {
   Future<void> init({required Future<String?> Function() accessToken}) async {
     if (_initialized || kIsWeb) return;
     _initialized = true;
-    // Point d'extension FCM : récupérer le token et appeler registerDevice().
-    debugPrint('[TEKISA] PushNotificationService pret (FCM a configurer).');
+    await InAppNotificationService.instance.init(accessToken: accessToken);
+    debugPrint('[TEKISA] PushNotificationService pret (in-app gratuit).');
   }
 
   Future<void> registerDevice({

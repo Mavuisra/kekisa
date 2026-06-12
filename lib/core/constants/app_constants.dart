@@ -26,6 +26,13 @@ abstract class ApiEndpoints {
   static const String passwordResetConfirm = '/users/auth/password-reset/confirm/';
   static const String changePassword = '/users/auth/change-password/';
   static const String pushDevices = '/users/push-devices/';
+  static const String inAppNotifications = '/users/notifications/';
+  static const String inAppNotificationsUnreadCount =
+      '/users/notifications/unread-count/';
+  static const String inAppNotificationsReadAll =
+      '/users/notifications/read-all/';
+  static String inAppNotificationRead(int id) =>
+      '/users/notifications/$id/read/';
   static const String refresh = '/token/refresh/';
   static const String dashboard = '/users/dashboard/';
   static const String myTermResults = '/users/my-term-results/';
