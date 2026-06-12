@@ -65,7 +65,7 @@ class _QuickSaleScreenState extends State<QuickSaleScreen> {
     0,
     (sum, item) => sum + item.product.unitPrice.toInt() * item.qty,
   );
-  int get _discount => (_subtotal * 0.00).round();
+  int get _discount => (_subtotal * 0.05).round();
   int get _total => _subtotal - _discount;
   String get _query => _searchController.text.trim().toLowerCase();
 
@@ -354,7 +354,7 @@ class _QuickSaleScreenState extends State<QuickSaleScreen> {
             .map((e) => CartItemInput(productId: e.product.id, quantity: e.qty))
             .toList(),
         paymentMethod: _paymentMethod,
-        discountRate: 0,
+        discountRate: 5,
         customerName: saleCustomerName,
       );
       if (!mounted) return;

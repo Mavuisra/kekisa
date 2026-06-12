@@ -290,6 +290,15 @@
   const productSearch = document.getElementById("productSearch");
   const productButtons = Array.from(document.querySelectorAll(".product-btn"));
 
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   function renderCart() {
     if (!cart.length) {
       linesEl.innerHTML = '<div class="muted">Aucun article ajouté.</div>';
@@ -305,8 +314,8 @@
       row.className = "cart-line";
       row.innerHTML = `
         <div>
-          <strong>${item.name}</strong>
-          <div class="muted">${item.price} CDF</div>
+          <strong>${escapeHtml(item.name)}</strong>
+          <div class="muted">${escapeHtml(item.price)} CDF</div>
         </div>
         <div class="cart-line-right">
           <button type="button" class="qty-btn" data-idx="${idx}" data-act="minus">-</button>

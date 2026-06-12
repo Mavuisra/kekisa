@@ -58,6 +58,8 @@ class Sale(TimeStampedModel):
     total = models.DecimalField(max_digits=12, decimal_places=2)
     payment_method = models.CharField(max_length=32, default="cash")
     status = models.CharField(max_length=32, default="completed")
+    cancel_reason = models.CharField(max_length=255, blank=True, default="")
+    canceled_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ("-created_at",)

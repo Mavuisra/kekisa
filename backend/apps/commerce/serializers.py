@@ -88,6 +88,8 @@ class SaleSerializer(serializers.ModelSerializer):
             "total",
             "payment_method",
             "status",
+            "cancel_reason",
+            "canceled_at",
             "created_at",
             "items",
         ]

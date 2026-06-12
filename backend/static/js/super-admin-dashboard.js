@@ -1,4 +1,13 @@
 (function () {
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   const ENDPOINTS = {
     overview: "/api/v1/commerce/admin/overview/",
     sellerActivity: "/api/v1/commerce/admin/sellers-activity/",
@@ -144,7 +153,7 @@
         const revenue = Number(row.revenue || row.total_revenue || 0);
         const avgTicket = sales > 0 ? revenue / sales : 0;
         return `<tr>
-          <td class="py-2 pr-3 font-medium text-slate-800">${name}</td>
+          <td class="py-2 pr-3 font-medium text-slate-800">${escapeHtml(name)}</td>
           <td class="py-2 pr-3">${sales}</td>
           <td class="py-2 pr-3">${formatMoney(revenue)}</td>
           <td class="py-2 pr-3">${formatMoney(avgTicket)}</td>
@@ -172,10 +181,10 @@
             <a href="/super-admin/tenant/${encodeURIComponent(
               tenant.tenant_id,
             )}/" class="text-tekisa hover:underline">
-              ${tenant.company_name || tenant.tenant_id}
+              ${escapeHtml(tenant.company_name || tenant.tenant_id)}
             </a>
           </td>
-          <td class="py-2 pr-3">${tenant.business_category || "-"}</td>
+          <td class="py-2 pr-3">${escapeHtml(tenant.business_category || "-")}</td>
           <td class="py-2 pr-3">${statusBadge}</td>
           <td class="py-2 pr-3">${tenant.users_count || 0}</td>
           <td class="py-2 pr-3">${tenant.sales_count || 0}</td>
@@ -188,8 +197,8 @@
 
   function detailChip(label, value) {
     return `<div class="rounded-tekisa border border-slate-200 bg-slate-50 px-3 py-2">
-      <p class="text-xs uppercase tracking-wide text-slate-500">${label}</p>
-      <p class="font-semibold text-slate-800">${value || "-"}</p>
+      <p class="text-xs uppercase tracking-wide text-slate-500">${escapeHtml(label)}</p>
+      <p class="font-semibold text-slate-800">${escapeHtml(value || "-")}</p>
     </div>`;
   }
 
@@ -198,9 +207,9 @@
     const kpis = data.kpis || {};
 
     el.tenantCoreDetails.innerHTML = `
-      <div class="flex items-center justify-between"><dt class="text-slate-500">Tenant ID</dt><dd class="font-semibold">${tenant.tenant_id || "-"}</dd></div>
-      <div class="flex items-center justify-between"><dt class="text-slate-500">Entreprise</dt><dd class="font-semibold">${tenant.company_name || "-"}</dd></div>
-      <div class="flex items-center justify-between"><dt class="text-slate-500">Categorie</dt><dd class="font-semibold">${tenant.business_category || "-"}</dd></div>
+      <div class="flex items-center justify-between"><dt class="text-slate-500">Tenant ID</dt><dd class="font-semibold">${escapeHtml(tenant.tenant_id || "-")}</dd></div>
+      <div class="flex items-center justify-between"><dt class="text-slate-500">Entreprise</dt><dd class="font-semibold">${escapeHtml(tenant.company_name || "-")}</dd></div>
+      <div class="flex items-center justify-between"><dt class="text-slate-500">Categorie</dt><dd class="font-semibold">${escapeHtml(tenant.business_category || "-")}</dd></div>
       <div class="flex items-center justify-between"><dt class="text-slate-500">CA Total</dt><dd class="font-semibold">${formatMoney(kpis.revenue_total || 0)}</dd></div>
       <div class="flex items-center justify-between"><dt class="text-slate-500">Ventes</dt><dd class="font-semibold">${kpis.sales_count || 0}</dd></div>
       <div class="flex items-center justify-between"><dt class="text-slate-500">Ticket moyen</dt><dd class="font-semibold">${formatMoney(kpis.average_ticket || 0)}</dd></div>

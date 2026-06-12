@@ -4,12 +4,14 @@ from secrets import randbelow
 
 from django.contrib.auth import authenticate, get_user_model
 from django.utils import timezone as dj_timezone
+from django.conf import settings
 from rest_framework import generics, status, viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import PhoneOTP
+from .permissions import IsSuperAdmin
 from .serializers import (
     LoginSerializer,
     RegisterSerializer,
@@ -122,9 +124,25 @@ class RegisterView(generics.GenericAPIView):
 
 
 class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all()
+    """
+    Accès restreint : chaque utilisateur ne voit/modifie que son compte.
+    Liste globale réservée au super-admin plateforme.
+    """
+
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
+    http_method_names = ["get", "patch", "head", "options"]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser or (getattr(user, "role", "") or "").lower() == "super_admin":
+            return User.objects.all().order_by("id")
+        return User.objects.filter(pk=user.pk)
+
+    def get_permissions(self):
+        if self.action == "list":
+            return [IsAuthenticated(), IsSuperAdmin()]
+        return super().get_permissions()
 
 
 class RequestOTPView(generics.GenericAPIView):
@@ -132,6 +150,11 @@ class RequestOTPView(generics.GenericAPIView):
     serializer_class = RequestOTPSerializer
 
     def post(self, request, *args, **kwargs):
+        if not getattr(settings, "OTP_SMS_ENABLED", False):
+            return Response(
+                {"detail": "Connexion OTP désactivée. Utilisez mot de passe."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         phone = serializer.validated_data["phone"]
@@ -156,6 +179,11 @@ class VerifyOTPView(generics.GenericAPIView):
     serializer_class = VerifyOTPSerializer
 
     def post(self, request, *args, **kwargs):
+        if not getattr(settings, "OTP_SMS_ENABLED", False):
+            return Response(
+                {"detail": "Connexion OTP désactivée. Utilisez mot de passe."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         phone = serializer.validated_data["phone"]
@@ -182,13 +210,26 @@ class VerifyOTPView(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if otp_qs.attempts >= 5:
+            return Response(
+                {"detail": "Trop de tentatives. Demandez un nouveau code."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
         otp_qs.is_used = True
         otp_qs.save(update_fields=["is_used"])
 
-        user, _ = User.objects.get_or_create(
-            phone=phone,
-            defaults={"username": phone},
-        )
+        user = User.objects.filter(phone=phone).order_by("id").first()
+        if user is None:
+            return Response(
+                {"detail": "Aucun compte associé à ce numéro."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if not user.is_active:
+            return Response(
+                {"detail": "Compte désactivé."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         refresh = RefreshToken.for_user(user)
         data = {

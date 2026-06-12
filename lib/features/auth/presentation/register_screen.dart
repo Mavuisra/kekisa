@@ -332,7 +332,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   List<String> get _availableQuarters {
     final commune = _selectedCommune;
     if (commune == null) return const <String>[];
-    final raw = _kinshasaQuartersByCommune[commune] ?? const <String>[];
+    List<String> raw = const <String>[];
+    for (final entry in _kinshasaQuartersByCommune.entries) {
+      if (_normalizeLocationKey(entry.key) == _normalizeLocationKey(commune)) {
+        raw = entry.value;
+        break;
+      }
+    }
     final seen = <String>{};
     return raw
         .map(_normalizeLocationKey)

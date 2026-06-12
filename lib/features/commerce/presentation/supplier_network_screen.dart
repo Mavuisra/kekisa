@@ -1629,6 +1629,24 @@ class _SupplierOrderDetailScreenState extends State<_SupplierOrderDetailScreen>
                 icon: const Icon(Icons.chat_bubble_outline_rounded),
                 label: const Text('Poursuivre conversation'),
               ),
+              FilledButton.icon(
+                onPressed: (_updating ||
+                        !canSupplierActions ||
+                        _order.status != 'pending')
+                    ? null
+                    : () => _setStatus('accepted'),
+                icon: const Icon(Icons.check_circle_outline_rounded),
+                label: const Text('Accepter'),
+              ),
+              OutlinedButton.icon(
+                onPressed: (_updating ||
+                        !canSupplierActions ||
+                        _order.status != 'pending')
+                    ? null
+                    : () => _setStatus('rejected'),
+                icon: const Icon(Icons.block_rounded),
+                label: const Text('Rejeter'),
+              ),
               OutlinedButton.icon(
                 onPressed: (_updating || !canMerchantActions)
                     ? null
@@ -1637,7 +1655,9 @@ class _SupplierOrderDetailScreenState extends State<_SupplierOrderDetailScreen>
                 label: const Text('En attente'),
               ),
               FilledButton.icon(
-                onPressed: (_updating || !canSupplierActions)
+                onPressed: (_updating ||
+                        !canSupplierActions ||
+                        _order.status != 'accepted')
                     ? null
                     : () => _setStatus('fulfilled'),
                 icon: const Icon(Icons.verified_rounded),

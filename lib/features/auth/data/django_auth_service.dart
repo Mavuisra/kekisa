@@ -109,17 +109,13 @@ class DjangoAuthService {
         username: username,
         password: password,
       );
-      final effectiveLocalUser =
-          localUser ??
-          await _localAuth.createOrUpdateUser(
-            username: username.trim(),
-            password: password,
-            role: 'seller',
-            businessCategory: 'boutique',
-            companyName: 'Compte local',
-            displayName: username.trim(),
-            phone: username.trim(),
-          );
+      if (localUser == null) {
+        throw AuthException(
+          message:
+              'Connexion impossible hors ligne. Vérifiez vos identifiants ou réessayez avec le réseau.',
+        );
+      }
+      final effectiveLocalUser = localUser;
       await _local.setAccessToken('local_offline_token');
       await _local.setRefreshToken('local_offline_refresh');
       await _local.setUser(effectiveLocalUser);
@@ -209,6 +205,13 @@ class DjangoAuthService {
       await _triggerBackgroundSync();
       return;
     } catch (e) {
+      final allowOfflineFallback =
+          e is NetworkException ||
+          e is ServerException ||
+          e is UnknownException;
+      if (!allowOfflineFallback) {
+        rethrow;
+      }
       final localUser = await _localAuth.createOrUpdateUser(
         username: username,
         password: password,

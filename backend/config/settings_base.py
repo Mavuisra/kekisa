@@ -2,17 +2,33 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "change-me-in-production")
+_SECRET_DEFAULT = "change-me-in-production"
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", _SECRET_DEFAULT)
 
 DEBUG = os.getenv("DJANGO_DEBUG", "True") == "True"
 
-ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",")
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",")
+    if host.strip()
+]
+
+if not DEBUG:
+    if not SECRET_KEY or SECRET_KEY == _SECRET_DEFAULT:
+        raise ImproperlyConfigured(
+            "DJANGO_SECRET_KEY doit être défini en production."
+        )
+    if not ALLOWED_HOSTS or ALLOWED_HOSTS == ["*"]:
+        raise ImproperlyConfigured(
+            "DJANGO_ALLOWED_HOSTS doit lister les domaines autorisés en production."
+        )
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -142,6 +158,7 @@ SIMPLE_JWT = {
 }
 
 OTP_SMS_EXPIRY_SECONDS = int(os.getenv("OTP_SMS_EXPIRY_SECONDS", "300"))
+OTP_SMS_ENABLED = os.getenv("OTP_SMS_ENABLED", "False") == "True"
 
 # CORS : autoriser l'app Flutter (web, mobile) à appeler l'API en dev
 CORS_ALLOW_ALL_ORIGINS = DEBUG

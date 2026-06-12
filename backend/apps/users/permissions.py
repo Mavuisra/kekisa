@@ -11,9 +11,11 @@ def _has_role(user: User, allowed_roles: set[str]) -> bool:
 
 
 class IsSuperAdmin(BasePermission):
+    """Plateforme uniquement — pas les admins tenant (role=admin)."""
+
     def has_permission(self, request, view) -> bool:
         user: User = request.user  # type: ignore[assignment]
-        return bool(user and (user.is_superuser or _has_role(user, {"super_admin", "admin"})))
+        return bool(user and (user.is_superuser or _has_role(user, {"super_admin"})))
 
 
 class IsSchoolAdmin(BasePermission):

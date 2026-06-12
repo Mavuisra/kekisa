@@ -19,6 +19,8 @@ from .views import (
     AiSaleDraftView,
     QuickSaleCreateView,
     ReceiptVerifyView,
+    SaleCancelView,
+    SaleDetailView,
     SalesListView,
     SalesSummaryView,
     StockAddView,
@@ -75,6 +77,8 @@ urlpatterns = [
     path("sales/summary/", SalesSummaryView.as_view(), name="commerce-sales-summary"),
     path("sales/ai-draft/", AiSaleDraftView.as_view(), name="commerce-sales-ai-draft"),
     path("sales/list/", SalesListView.as_view(), name="commerce-sales-list"),
+    path("sales/<int:sale_id>/", SaleDetailView.as_view(), name="commerce-sale-detail"),
+    path("sales/<int:sale_id>/cancel/", SaleCancelView.as_view(), name="commerce-sale-cancel"),
     path("sales/receipt-verify/", ReceiptVerifyView.as_view(), name="commerce-sales-receipt-verify"),
     path("sales/quick/", QuickSaleCreateView.as_view(), name="commerce-sales-quick"),
 ]

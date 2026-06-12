@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:uuid/uuid.dart';
 
 import '../../core/offline/local_sqlite.dart';
+import '../../core/security/password_hash.dart';
 import '../models/user_model.dart';
 
 class LocalAuthDataSource {
@@ -15,28 +16,8 @@ class LocalAuthDataSource {
   final Uuid _uuid = const Uuid();
 
   Future<void> ensureSeeded() async {
-    final db = await _sqlite.database;
-    final rows = await db.rawQuery(
-      'SELECT COUNT(*) AS total FROM local_auth_users',
-    );
-    final total = (rows.first['total'] as num?)?.toInt() ?? 0;
-    if (total > 0) {
-      return;
-    }
-    final now = DateTime.now().millisecondsSinceEpoch;
-    await db.insert('local_auth_users', {
-      'id': _uuid.v4(),
-      'username': 'admin',
-      'password': 'admin123',
-      'role': 'admin',
-      'business_category': 'salon_coiffure',
-      'company_name': 'TEKISA',
-      'display_name': 'Admin Local',
-      'phone': '+243000000000',
-      'profile_json': '{}',
-      'active': 1,
-      'created_at': now,
-    });
+    // Ne plus créer de compte demo avec mot de passe en clair.
+    await _sqlite.database;
   }
 
   Future<UserModel?> authenticate({
@@ -46,11 +27,15 @@ class LocalAuthDataSource {
     final db = await _sqlite.database;
     final rows = await db.query(
       'local_auth_users',
-      where: 'LOWER(username) = LOWER(?) AND password = ? AND active = 1',
-      whereArgs: [username.trim(), password],
+      where: 'LOWER(username) = LOWER(?) AND active = 1',
+      whereArgs: [username.trim()],
       limit: 1,
     );
     if (rows.isEmpty) {
+      return null;
+    }
+    final stored = rows.first['password'] as String? ?? '';
+    if (!PasswordHash.verify(password, stored)) {
       return null;
     }
     return _rowToUser(rows.first);
@@ -68,6 +53,7 @@ class LocalAuthDataSource {
     UserModel? userSnapshot,
   }) async {
     final db = await _sqlite.database;
+    final hashed = PasswordHash.hash(password);
     final existing = await db.query(
       'local_auth_users',
       where: 'LOWER(username) = LOWER(?)',
@@ -80,7 +66,7 @@ class LocalAuthDataSource {
       await db.update(
         'local_auth_users',
         {
-          'password': password,
+          'password': hashed,
           'role': role,
           'business_category': businessCategory,
           'company_name': companyName,
@@ -107,7 +93,7 @@ class LocalAuthDataSource {
     await db.insert('local_auth_users', {
       'id': id,
       'username': username.trim(),
-      'password': password,
+      'password': hashed,
       'role': role,
       'business_category': businessCategory,
       'company_name': companyName,

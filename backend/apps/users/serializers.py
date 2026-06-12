@@ -32,7 +32,7 @@ class UserSerializer(serializers.ModelSerializer):
             "company_avenue",
             "company_number",
         ]
-        read_only_fields = ["id"]
+        read_only_fields = ["id", "role"]
 
 
 class LoginSerializer(serializers.Serializer):

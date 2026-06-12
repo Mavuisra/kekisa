@@ -878,8 +878,29 @@ class SupplierFileUploadView(APIView):
             return Response({"detail": "Fichier trop lourd (max 20MB)."}, status=400)
 
         ext = os.path.splitext(uploaded.name)[1].lower()
-        if not ext:
-            ext = ".bin"
+        allowed_ext = {
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".gif",
+            ".webp",
+            ".pdf",
+            ".xlsx",
+            ".xls",
+            ".doc",
+            ".docx",
+            ".txt",
+            ".csv",
+            ".m4a",
+            ".mp3",
+            ".wav",
+            ".ogg",
+        }
+        if ext not in allowed_ext:
+            return Response(
+                {"detail": "Type de fichier non autorise."},
+                status=400,
+            )
         path = f"supplier_files/{request.user.id}/{uuid.uuid4().hex}{ext}"
         saved_path = default_storage.save(path, uploaded)
         absolute_url = _public_media_url(request, saved_path)
@@ -1467,9 +1488,89 @@ class SalesListView(APIView):
                     "subtotal": float(s.subtotal),
                     "discount_amount": float(s.discount_amount),
                     "total": float(s.total),
+                    "status": s.status,
                 }
             )
         return Response(out)
+
+
+def _sale_receipt_payload(sale):
+    data = SaleSerializer(sale).data
+    data["customer_name"] = sale.customer.full_name if sale.customer else ""
+    data["reference"] = _sale_reference(sale)
+    if sale.created_at:
+        data["created_at"] = sale.created_at.isoformat()
+    if sale.canceled_at:
+        data["canceled_at"] = sale.canceled_at.isoformat()
+    return data
+
+
+class SaleDetailView(APIView):
+    """GET /api/v1/commerce/sales/<id>/ — détail reçu vente."""
+
+    permission_classes = [IsAuthenticated, IsSeller]
+
+    def get(self, request, sale_id: int):
+        sale = (
+            Sale.objects.filter(seller=request.user, id=sale_id)
+            .select_related("customer")
+            .prefetch_related("items__product")
+            .first()
+        )
+        if sale is None:
+            return Response({"detail": "Vente introuvable."}, status=404)
+        return Response(_sale_receipt_payload(sale))
+
+
+class SaleCancelView(APIView):
+    """POST /api/v1/commerce/sales/<id>/cancel/ — annulation avec restitution stock."""
+
+    permission_classes = [IsAuthenticated, IsSeller]
+
+    def post(self, request, sale_id: int):
+        reason = (request.data.get("reason") or "").strip()
+        if not reason:
+            return Response({"detail": "Motif d'annulation obligatoire."}, status=400)
+
+        with transaction.atomic():
+            sale = (
+                Sale.objects.select_for_update()
+                .filter(seller=request.user, id=sale_id)
+                .select_related("customer")
+                .first()
+            )
+            if sale is None:
+                return Response({"detail": "Vente introuvable."}, status=404)
+            if sale.status in {"cancelled", "canceled"}:
+                return Response(
+                    {"detail": "Cette vente est déjà annulée.", "receipt": _sale_receipt_payload(sale)},
+                    status=400,
+                )
+
+            items = list(
+                SaleItem.objects.filter(sale=sale).select_related("product").select_for_update()
+            )
+            for row in items:
+                product = row.product
+                product.stock_quantity += row.quantity
+                product.save(update_fields=["stock_quantity"])
+                StockMovement.objects.create(
+                    seller=request.user,
+                    product=product,
+                    movement_type=StockMovement.MovementType.IN,
+                    quantity=row.quantity,
+                    reason="sale_cancel",
+                    balance_after=product.stock_quantity,
+                    reference=f"sale_cancel:{sale.id}",
+                )
+
+            sale.status = "cancelled"
+            sale.cancel_reason = reason[:255]
+            sale.canceled_at = timezone.now()
+            sale.save(update_fields=["status", "cancel_reason", "canceled_at", "updated_at"])
+
+        payload = _sale_receipt_payload(sale)
+        return Response({"receipt": payload}, status=200)
 
 
 class ReceiptVerifyView(APIView):

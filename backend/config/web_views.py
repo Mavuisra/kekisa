@@ -29,25 +29,26 @@ from apps.users.models import User
 
 class _WebDataMixin:
     def _sales_queryset(self):
-        qs = Sale.objects.all()
-        if self.request.user.is_authenticated:
-            qs = qs.filter(seller=self.request.user)
-        return qs
+        if not self.request.user.is_authenticated:
+            return Sale.objects.none()
+        return Sale.objects.filter(seller=self.request.user)
 
     def _products_queryset(self):
-        qs = Product.objects.all()
-        if self.request.user.is_authenticated:
-            qs = qs.filter(seller=self.request.user)
-        return qs
+        if not self.request.user.is_authenticated:
+            return Product.objects.none()
+        return Product.objects.filter(seller=self.request.user)
 
     def _customers_queryset(self):
-        qs = Customer.objects.all()
-        if self.request.user.is_authenticated:
-            qs = qs.filter(seller=self.request.user)
-        return qs
+        if not self.request.user.is_authenticated:
+            return Customer.objects.none()
+        return Customer.objects.filter(seller=self.request.user)
 
 
-class WebHomeView(_WebDataMixin, TemplateView):
+class WebAuthRequiredMixin(LoginRequiredMixin):
+    login_url = "/web/login/"
+
+
+class WebHomeView(WebAuthRequiredMixin, _WebDataMixin, TemplateView):
     template_name = "web/dashboard.html"
 
     def get_context_data(self, **kwargs):
@@ -136,15 +137,13 @@ class WebRegisterView(TemplateView):
         display_name = (request.POST.get("display_name") or "").strip()
         company_name = (request.POST.get("company_name") or "").strip()
         phone = (request.POST.get("phone") or "").strip()
-        role = (request.POST.get("role") or User.Role.SELLER).strip().lower()
         password = request.POST.get("password") or ""
         if not username or not phone or not password:
             context = self.get_context_data(
                 error_message="Username, téléphone et mot de passe sont obligatoires."
             )
             return self.render_to_response(context)
-        if role not in {User.Role.ADMIN, User.Role.SELLER, User.Role.CASHIER}:
-            role = User.Role.SELLER
+        role = User.Role.SELLER
         if User.objects.filter(username=username).exists():
             context = self.get_context_data(error_message="Ce username existe déjà.")
             return self.render_to_response(context)
@@ -191,7 +190,7 @@ class WebAppDownloadView(TemplateView):
         return context
 
 
-class WebSalesView(_WebDataMixin, TemplateView):
+class WebSalesView(WebAuthRequiredMixin, _WebDataMixin, TemplateView):
     template_name = "web/sales.html"
 
     def get_context_data(self, **kwargs):
@@ -319,7 +318,7 @@ class WebSalesView(_WebDataMixin, TemplateView):
         return redirect("web-ventes")
 
 
-class WebStockView(_WebDataMixin, TemplateView):
+class WebStockView(WebAuthRequiredMixin, _WebDataMixin, TemplateView):
     template_name = "web/stock.html"
 
     def get_context_data(self, **kwargs):
@@ -336,7 +335,7 @@ class WebStockView(_WebDataMixin, TemplateView):
         return context
 
 
-class WebCustomersView(_WebDataMixin, TemplateView):
+class WebCustomersView(WebAuthRequiredMixin, _WebDataMixin, TemplateView):
     template_name = "web/customers.html"
 
     def get_context_data(self, **kwargs):
@@ -358,7 +357,7 @@ class WebCustomersView(_WebDataMixin, TemplateView):
         return context
 
 
-class WebSuppliersView(TemplateView):
+class WebSuppliersView(WebAuthRequiredMixin, TemplateView):
     template_name = "web/suppliers.html"
 
     def get_context_data(self, **kwargs):
@@ -385,8 +384,21 @@ class WebSuppliersView(TemplateView):
         return context
 
 
-class WebAdminView(TemplateView):
+class WebAdminView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     template_name = "web/administration.html"
+    login_url = "/web/login/"
+
+    def test_func(self):
+        user = self.request.user
+        if not user.is_authenticated:
+            return False
+        role = (getattr(user, "role", "") or "").lower()
+        return user.is_superuser or role == "super_admin"
+
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated:
+            return HttpResponseForbidden("Acces refuse.")
+        return super().handle_no_permission()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -402,7 +414,7 @@ class WebAdminView(TemplateView):
         return context
 
 
-class WebSettingsView(TemplateView):
+class WebSettingsView(WebAuthRequiredMixin, TemplateView):
     template_name = "web/settings.html"
 
     def get_context_data(self, **kwargs):
@@ -432,7 +444,7 @@ class SuperAdminDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateV
         if not user.is_authenticated:
             return False
         role = (getattr(user, "role", "") or "").lower()
-        return user.is_superuser or role in {"super_admin", "admin"}
+        return user.is_superuser or role == "super_admin"
 
     def handle_no_permission(self):
         if self.request.user.is_authenticated:
@@ -449,7 +461,7 @@ class SuperAdminTenantDetailPageView(LoginRequiredMixin, UserPassesTestMixin, Te
         if not user.is_authenticated:
             return False
         role = (getattr(user, "role", "") or "").lower()
-        return user.is_superuser or role in {"super_admin", "admin"}
+        return user.is_superuser or role == "super_admin"
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
