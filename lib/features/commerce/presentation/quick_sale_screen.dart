@@ -2,6 +2,7 @@ library;
 
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -19,6 +20,7 @@ import '../../auth/data/django_auth_service.dart';
 import '../../auth/presentation/auth_router.dart';
 import '../../settings/presentation/commerce_settings_screen.dart';
 import 'ai_sale_screen.dart';
+import 'barcode_scan_screen.dart';
 import 'receipt_verification_screen.dart';
 
 class QuickSaleScreen extends StatefulWidget {
@@ -90,6 +92,34 @@ class _QuickSaleScreenState extends State<QuickSaleScreen> {
     _searchController.dispose();
     _customerController.dispose();
     super.dispose();
+  }
+
+  Future<void> _scanBarcode() async {
+    if (kIsWeb) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Scanner indisponible sur le web.')),
+      );
+      return;
+    }
+    final code = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const BarcodeScanScreen()),
+    );
+    if (code == null || code.trim().isEmpty) return;
+    _searchController.text = code.trim();
+    setState(() {});
+    final normalized = code.trim().toLowerCase();
+    CommerceProductModel? match;
+    for (final p in _products) {
+      if (p.sku.toLowerCase() == normalized ||
+          p.name.toLowerCase() == normalized) {
+        match = p;
+        break;
+      }
+    }
+    if (match != null && match.stockQuantity > 0) {
+      _addProduct(match);
+    }
   }
 
   Future<CommerceRemoteDataSource?> _source() async {
@@ -1017,7 +1047,11 @@ class _QuickSaleScreenState extends State<QuickSaleScreen> {
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               hintText: _profile.searchItemHint,
-              prefixIcon: const Icon(Icons.search_rounded),
+              prefixIcon: IconButton(
+                onPressed: _scanBarcode,
+                icon: const Icon(Icons.qr_code_scanner_rounded),
+                tooltip: 'Scanner code-barres',
+              ),
               suffixIcon: IconButton(
                 onPressed: _filteredProducts.isEmpty
                     ? null

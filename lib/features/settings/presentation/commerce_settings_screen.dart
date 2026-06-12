@@ -3,6 +3,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/errors/app_exceptions.dart';
 import '../../../core/i18n/app_i18n.dart';
 import '../../../core/i18n/locale_controller.dart';
 import '../../../core/support/support_contact.dart';
@@ -374,6 +375,93 @@ class _CommerceSettingsScreenState extends State<CommerceSettingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
+    }
+  }
+
+  Future<void> _changePassword() async {
+    final oldCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(context.tr('Changer le mot de passe')),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: oldCtrl,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: context.tr('Ancien mot de passe'),
+                ),
+                validator: (v) =>
+                    (v == null || v.isEmpty) ? 'Obligatoire' : null,
+              ),
+              TextFormField(
+                controller: newCtrl,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: context.tr('Nouveau mot de passe'),
+                ),
+                validator: (v) => (v == null || v.length < 6)
+                    ? '6 caracteres minimum'
+                    : null,
+              ),
+              TextFormField(
+                controller: confirmCtrl,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: context.tr('Confirmer'),
+                ),
+                validator: (v) =>
+                    v != newCtrl.text ? 'Ne correspond pas' : null,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(context.tr('Annuler')),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() != true) return;
+              Navigator.pop(ctx, true);
+            },
+            child: Text(context.tr('Enregistrer')),
+          ),
+        ],
+      ),
+    );
+    if (submitted != true || !mounted) {
+      oldCtrl.dispose();
+      newCtrl.dispose();
+      confirmCtrl.dispose();
+      return;
+    }
+    try {
+      await djangoAuthService.changePassword(
+        oldPassword: oldCtrl.text,
+        newPassword: newCtrl.text,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mot de passe modifie.')),
+      );
+    } on AppException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } finally {
+      oldCtrl.dispose();
+      newCtrl.dispose();
+      confirmCtrl.dispose();
     }
   }
 
@@ -899,7 +987,7 @@ class _CommerceSettingsScreenState extends State<CommerceSettingsScreen> {
                   subtitle: Text(
                     context.tr('Mot de passe et sessions actives'),
                   ),
-                  onTap: () {},
+                  onTap: _changePassword,
                 ),
                 const SizedBox(height: 8),
                 ListTile(

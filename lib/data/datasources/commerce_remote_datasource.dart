@@ -2,6 +2,7 @@ library;
 
 import 'dart:math';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import '../../core/constants/app_constants.dart';
@@ -1525,5 +1526,30 @@ class CommerceRemoteDataSource {
           },
         )
         .toList();
+  }
+
+  Future<Uint8List> downloadSalesExport({String? date}) async {
+    final response = await _client.get<List<int>>(
+      ApiEndpoints.commerceSalesExport,
+      queryParameters: date == null ? null : {'date': date},
+      options: Options(responseType: ResponseType.bytes),
+    );
+    final data = response.data;
+    if (data == null || data.isEmpty) {
+      throw UnknownException('Export ventes vide.');
+    }
+    return Uint8List.fromList(data);
+  }
+
+  Future<Uint8List> downloadStockExport() async {
+    final response = await _client.get<List<int>>(
+      ApiEndpoints.commerceStockExport,
+      options: Options(responseType: ResponseType.bytes),
+    );
+    final data = response.data;
+    if (data == null || data.isEmpty) {
+      throw UnknownException('Export stock vide.');
+    }
+    return Uint8List.fromList(data);
   }
 }

@@ -255,6 +255,39 @@ class DjangoAuthService {
     return token != null && token.isNotEmpty;
   }
 
+  Future<void> requestPasswordReset({required String phone}) async {
+    final client = DioClient(baseUrl: EnvConfig.apiBaseUrl, accessToken: null);
+    await AuthRemoteDataSource(client).requestPasswordReset(phone: phone);
+  }
+
+  Future<void> confirmPasswordReset({
+    required String phone,
+    required String code,
+    required String newPassword,
+  }) async {
+    final client = DioClient(baseUrl: EnvConfig.apiBaseUrl, accessToken: null);
+    await AuthRemoteDataSource(client).confirmPasswordReset(
+      phone: phone,
+      code: code,
+      newPassword: newPassword,
+    );
+  }
+
+  Future<void> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    final token = await _local.getAccessToken();
+    if (token == null || token.startsWith('local_')) {
+      throw AuthException(message: 'Modification impossible en mode hors ligne.');
+    }
+    final client = DioClient(baseUrl: EnvConfig.apiBaseUrl, accessToken: token);
+    await AuthRemoteDataSource(client).changePassword(
+      oldPassword: oldPassword,
+      newPassword: newPassword,
+    );
+  }
+
   Future<void> logout() => _local.clearAll();
 }
 

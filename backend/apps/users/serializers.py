@@ -101,3 +101,40 @@ class PhoneOTPSerializer(serializers.ModelSerializer):
         model = PhoneOTP
         fields = ["phone", "expires_at", "is_used"]
 
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    phone = serializers.CharField(max_length=32)
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    phone = serializers.CharField(max_length=32)
+    code = serializers.CharField(max_length=8)
+    new_password = serializers.CharField(
+        max_length=128,
+        write_only=True,
+        style={"input_type": "password"},
+        min_length=6,
+    )
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(
+        max_length=128,
+        write_only=True,
+        style={"input_type": "password"},
+    )
+    new_password = serializers.CharField(
+        max_length=128,
+        write_only=True,
+        style={"input_type": "password"},
+        min_length=6,
+    )
+
+
+class RegisterPushDeviceSerializer(serializers.Serializer):
+    token = serializers.CharField(max_length=512)
+    platform = serializers.ChoiceField(
+        choices=["android", "ios", "web"],
+        default="android",
+    )
+

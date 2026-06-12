@@ -63,3 +63,41 @@ class PhoneOTP(TimeStampedModel):
             models.Index(fields=["phone", "expires_at"]),
         ]
 
+
+class PasswordResetOTP(TimeStampedModel):
+    phone = models.CharField(max_length=32, db_index=True)
+    code_hash = models.CharField(max_length=128)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+    attempts = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["phone", "expires_at"]),
+        ]
+
+
+class PushDevice(TimeStampedModel):
+    class Platform(models.TextChoices):
+        ANDROID = "android", "Android"
+        IOS = "ios", "iOS"
+        WEB = "web", "Web"
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="push_devices",
+    )
+    token = models.CharField(max_length=512, unique=True)
+    platform = models.CharField(
+        max_length=16,
+        choices=Platform.choices,
+        default=Platform.ANDROID,
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "is_active"]),
+        ]
+

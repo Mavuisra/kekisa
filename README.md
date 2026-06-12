@@ -21,7 +21,7 @@ python -m venv .venv
 # macOS/Linux : source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env   # puis éditer DJANGO_SECRET_KEY
-python manage.py migrate
+python manage.py migrate   # commerce.0007 + users.0009 (annulation vente, push, reset MDP)
 python manage.py runserver
 ```
 

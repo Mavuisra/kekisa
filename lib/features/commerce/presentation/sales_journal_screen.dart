@@ -14,6 +14,7 @@ import '../../../core/network/dio_client.dart';
 import '../../../core/offline/tenant_context.dart';
 import '../../../data/datasources/auth_local_datasource.dart';
 import '../../../data/datasources/commerce_remote_datasource.dart';
+import '../../../core/utils/file_export_helper.dart';
 import '../../../data/models/commerce_models.dart';
 
 class SalesJournalScreen extends StatefulWidget {
@@ -255,6 +256,31 @@ class _SalesJournalScreenState extends State<SalesJournalScreen> {
     return doc.save();
   }
 
+  Future<void> _exportExcel() async {
+    final source = await _source();
+    if (source == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connexion requise pour exporter.')),
+      );
+      return;
+    }
+    try {
+      final bytes = await source.downloadSalesExport(date: _selectedDateApi());
+      await FileExportHelper.shareBytes(
+        bytes: bytes,
+        filename: 'tekisa-ventes-${_selectedDateApi()}.xlsx',
+        mimeType:
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
   Future<void> _printFiltered() async {
     final rows = _filteredSales;
     if (rows.isEmpty) {
@@ -282,6 +308,11 @@ class _SalesJournalScreenState extends State<SalesJournalScreen> {
             onPressed: _pickDate,
             icon: const Icon(Icons.calendar_today_outlined),
             tooltip: 'Choisir date',
+          ),
+          IconButton(
+            onPressed: _exportExcel,
+            icon: const Icon(Icons.table_chart_outlined),
+            tooltip: 'Exporter Excel',
           ),
           IconButton(
             onPressed: _printFiltered,

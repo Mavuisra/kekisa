@@ -114,6 +114,79 @@ class AuthRemoteDataSource {
     }
   }
 
+  Future<void> requestPasswordReset({required String phone}) async {
+    try {
+      await _client.post<Map<String, dynamic>>(
+        ApiEndpoints.passwordResetRequest,
+        data: {'phone': phone},
+        queueIfOffline: false,
+      );
+    } on DioException catch (e) {
+      throw e.error is AppException
+          ? e.error as AppException
+          : UnknownException(e.message ?? 'Erreur reseau');
+    }
+  }
+
+  Future<void> confirmPasswordReset({
+    required String phone,
+    required String code,
+    required String newPassword,
+  }) async {
+    try {
+      await _client.post<Map<String, dynamic>>(
+        ApiEndpoints.passwordResetConfirm,
+        data: {
+          'phone': phone,
+          'code': code,
+          'new_password': newPassword,
+        },
+        queueIfOffline: false,
+      );
+    } on DioException catch (e) {
+      throw e.error is AppException
+          ? e.error as AppException
+          : UnknownException(e.message ?? 'Erreur reseau');
+    }
+  }
+
+  Future<void> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    try {
+      await _client.post<Map<String, dynamic>>(
+        ApiEndpoints.changePassword,
+        data: {
+          'old_password': oldPassword,
+          'new_password': newPassword,
+        },
+        queueIfOffline: false,
+      );
+    } on DioException catch (e) {
+      throw e.error is AppException
+          ? e.error as AppException
+          : UnknownException(e.message ?? 'Erreur reseau');
+    }
+  }
+
+  Future<void> registerPushDevice({
+    required String token,
+    required String platform,
+  }) async {
+    try {
+      await _client.post<Map<String, dynamic>>(
+        ApiEndpoints.pushDevices,
+        data: {'token': token, 'platform': platform},
+        queueIfOffline: false,
+      );
+    } on DioException catch (e) {
+      throw e.error is AppException
+          ? e.error as AppException
+          : UnknownException(e.message ?? 'Erreur reseau');
+    }
+  }
+
   /// POST {base}/token/refresh/ (Django SimpleJWT: body { "refresh": "..." } → { "access": "..." })
   Future<AuthTokensModel> refresh(String refreshToken) async {
     try {

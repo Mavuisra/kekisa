@@ -2,17 +2,43 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../../core/errors/app_exceptions.dart';
 import '../../../core/support/support_contact.dart';
+import '../../auth/data/django_auth_service.dart';
 
-class ForgotPasswordScreen extends StatelessWidget {
+class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
 
-  Future<void> _contactSupport(BuildContext context) async {
+  @override
+  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+}
+
+class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+  final _phoneCtrl = TextEditingController();
+  final _codeCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+
+  int _step = 0;
+  bool _loading = false;
+  bool _obscure = true;
+  String? _error;
+
+  @override
+  void dispose() {
+    _phoneCtrl.dispose();
+    _codeCtrl.dispose();
+    _passwordCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _contactSupport() async {
     final opened = await openWhatsAppSupport(
       message:
           'Bonjour, je n\'arrive pas a recuperer mon mot de passe sur TEKISA.',
     );
-    if (!context.mounted || opened) return;
+    if (!mounted || opened) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Impossible d\'ouvrir WhatsApp sur cet appareil.'),
@@ -20,56 +46,166 @@ class ForgotPasswordScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _requestCode() async {
+    final phone = _phoneCtrl.text.trim();
+    if (phone.isEmpty) {
+      setState(() => _error = 'Indiquez votre numero de telephone.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await djangoAuthService.requestPasswordReset(phone: phone);
+      if (!mounted) return;
+      setState(() => _step = 1);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Code envoye par SMS.')),
+      );
+    } on AppException catch (e) {
+      setState(() => _error = e.message);
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _confirmReset() async {
+    final phone = _phoneCtrl.text.trim();
+    final code = _codeCtrl.text.trim();
+    final password = _passwordCtrl.text;
+    final confirm = _confirmCtrl.text;
+    if (code.isEmpty || password.length < 6) {
+      setState(() => _error = 'Code et mot de passe (6+ caracteres) requis.');
+      return;
+    }
+    if (password != confirm) {
+      setState(() => _error = 'Les mots de passe ne correspondent pas.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await djangoAuthService.confirmPasswordReset(
+        phone: phone,
+        code: code,
+        newPassword: password,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mot de passe mis a jour.')),
+      );
+      Navigator.of(context).pop();
+    } on AppException catch (e) {
+      setState(() => _error = e.message);
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Mot de passe oublié')),
-      body: Padding(
+      appBar: AppBar(title: const Text('Mot de passe oublie')),
+      body: ListView(
         padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Besoin d\'aide pour récupérer votre compte ?',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Cliquez sur le bouton ci-dessous pour contacter le support '
-                    'via WhatsApp.',
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Numéro: 0821633587',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+        children: [
+          Text(
+            _step == 0
+                ? 'Recevez un code SMS pour reinitialiser votre mot de passe.'
+                : 'Saisissez le code recu et votre nouveau mot de passe.',
+            style: theme.textTheme.bodyLarge,
+          ),
+          const SizedBox(height: 16),
+          if (_step == 0) ...[
+            TextField(
+              controller: _phoneCtrl,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: 'Telephone (+243...)',
+                prefixIcon: Icon(Icons.phone_outlined),
               ),
             ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () => _contactSupport(context),
-              icon: const Icon(Icons.chat_outlined),
-              label: const Text('Contacter via WhatsApp'),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _loading ? null : _requestCode,
+              child: _loading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Envoyer le code'),
+            ),
+          ] else ...[
+            TextField(
+              controller: _codeCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Code SMS',
+                prefixIcon: Icon(Icons.sms_outlined),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _passwordCtrl,
+              obscureText: _obscure,
+              decoration: InputDecoration(
+                labelText: 'Nouveau mot de passe',
+                prefixIcon: const Icon(Icons.lock_outline),
+                suffixIcon: IconButton(
+                  onPressed: () => setState(() => _obscure = !_obscure),
+                  icon: Icon(
+                    _obscure ? Icons.visibility_off : Icons.visibility,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _confirmCtrl,
+              obscureText: _obscure,
+              decoration: const InputDecoration(
+                labelText: 'Confirmer le mot de passe',
+                prefixIcon: Icon(Icons.lock_outline),
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _loading ? null : _confirmReset,
+              child: _loading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Reinitialiser'),
             ),
           ],
-        ),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+          ],
+          const SizedBox(height: 20),
+          const Divider(),
+          const SizedBox(height: 8),
+          const Text(
+            'Si le SMS n\'est pas disponible, contactez le support Tekisa.',
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _contactSupport,
+            icon: const Icon(Icons.chat_outlined),
+            label: const Text('Contacter via WhatsApp'),
+          ),
+        ],
       ),
     );
   }

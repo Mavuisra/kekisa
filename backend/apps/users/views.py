@@ -8,12 +8,17 @@ from django.conf import settings
 from rest_framework import generics, status, viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import PhoneOTP
+from .models import PasswordResetOTP, PhoneOTP, PushDevice
 from .permissions import IsSuperAdmin
 from .serializers import (
+    ChangePasswordSerializer,
     LoginSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
+    RegisterPushDeviceSerializer,
     RegisterSerializer,
     RequestOTPSerializer,
     UserSerializer,
@@ -237,4 +242,143 @@ class VerifyOTPView(generics.GenericAPIView):
             "refresh": str(refresh),
         }
         return Response(data, status=status.HTTP_200_OK)
+
+
+class PasswordResetRequestView(generics.GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = PasswordResetRequestSerializer
+
+    def post(self, request, *args, **kwargs):
+        if not getattr(settings, "OTP_SMS_ENABLED", False):
+            return Response(
+                {
+                    "detail": (
+                        "Reinitialisation SMS indisponible. "
+                        "Contactez le support Tekisa."
+                    )
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        phone = serializer.validated_data["phone"].strip()
+        user = User.objects.filter(phone=phone).order_by("id").first()
+        if user is None:
+            return Response(
+                {"detail": "Aucun compte associe a ce numero."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        code = f"{randbelow(1000000):06d}"
+        code_hash = sha256(code.encode("utf-8")).hexdigest()
+        expires_at = dj_timezone.now() + timedelta(
+            seconds=int(getattr(settings, "OTP_SMS_EXPIRY_SECONDS", 300))
+        )
+        PasswordResetOTP.objects.create(
+            phone=phone,
+            code_hash=code_hash,
+            expires_at=expires_at,
+        )
+        # TODO: envoyer le code par SMS (Celery + fournisseur).
+        if settings.DEBUG:
+            print(f"[TEKISA DEBUG] Password reset code for {phone}: {code}")
+        return Response({"detail": "Code de reinitialisation envoye."}, status=200)
+
+
+class PasswordResetConfirmView(generics.GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = PasswordResetConfirmSerializer
+
+    def post(self, request, *args, **kwargs):
+        if not getattr(settings, "OTP_SMS_ENABLED", False):
+            return Response(
+                {"detail": "Reinitialisation SMS indisponible."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        phone = serializer.validated_data["phone"].strip()
+        code = serializer.validated_data["code"].strip()
+        new_password = serializer.validated_data["new_password"]
+
+        user = User.objects.filter(phone=phone).order_by("id").first()
+        if user is None:
+            return Response(
+                {"detail": "Aucun compte associe a ce numero."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        now = dj_timezone.now()
+        otp = (
+            PasswordResetOTP.objects.filter(phone=phone, is_used=False)
+            .order_by("-created_at")
+            .first()
+        )
+        if not otp or otp.expires_at < now:
+            return Response(
+                {"detail": "Code expire ou invalide."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if otp.attempts >= 5:
+            return Response(
+                {"detail": "Trop de tentatives. Demandez un nouveau code."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        expected_hash = sha256(code.encode("utf-8")).hexdigest()
+        if otp.code_hash != expected_hash:
+            otp.attempts += 1
+            otp.save(update_fields=["attempts"])
+            return Response({"detail": "Code invalide."}, status=400)
+
+        otp.is_used = True
+        otp.save(update_fields=["is_used"])
+        user.set_password(new_password)
+        user.save(update_fields=["password"])
+        return Response({"detail": "Mot de passe mis a jour."}, status=200)
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        old_password = serializer.validated_data["old_password"]
+        new_password = serializer.validated_data["new_password"]
+        user = request.user
+        if not user.check_password(old_password):
+            return Response(
+                {"detail": "Ancien mot de passe incorrect."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user.set_password(new_password)
+        user.save(update_fields=["password"])
+        return Response({"detail": "Mot de passe modifie."}, status=200)
+
+
+class RegisterPushDeviceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = RegisterPushDeviceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        token = serializer.validated_data["token"].strip()
+        platform = serializer.validated_data["platform"]
+        PushDevice.objects.update_or_create(
+            token=token,
+            defaults={
+                "user": request.user,
+                "platform": platform,
+                "is_active": True,
+            },
+        )
+        return Response({"detail": "Appareil enregistre."}, status=200)
+
+    def delete(self, request):
+        token = (request.data.get("token") or "").strip()
+        if not token:
+            return Response({"detail": "Token manquant."}, status=400)
+        PushDevice.objects.filter(user=request.user, token=token).update(is_active=False)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 

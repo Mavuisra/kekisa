@@ -22,6 +22,10 @@ abstract class ApiConstants {
 abstract class ApiEndpoints {
   static const String login = '/users/auth/login/';
   static const String register = '/users/auth/register/';
+  static const String passwordResetRequest = '/users/auth/password-reset/request/';
+  static const String passwordResetConfirm = '/users/auth/password-reset/confirm/';
+  static const String changePassword = '/users/auth/change-password/';
+  static const String pushDevices = '/users/push-devices/';
   static const String refresh = '/token/refresh/';
   static const String dashboard = '/users/dashboard/';
   static const String myTermResults = '/users/my-term-results/';
@@ -58,6 +62,8 @@ abstract class ApiEndpoints {
   static const String commerceSalesSummary = '/commerce/sales/summary/';
   static const String commerceSalesAiDraft = '/commerce/sales/ai-draft/';
   static const String commerceSalesList = '/commerce/sales/list/';
+  static const String commerceSalesExport = '/commerce/sales/export.xlsx';
+  static const String commerceStockExport = '/commerce/stock/export.xlsx';
   static String commerceSaleDetail(int saleId) => '/commerce/sales/$saleId/';
   static String commerceSaleCancel(int saleId) =>
       '/commerce/sales/$saleId/cancel/';

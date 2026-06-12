@@ -2180,3 +2180,223 @@ class AdminTenantsCsvExportView(APIView):
             )
 
         return response
+
+
+class SalesExportView(APIView):
+    """GET /api/v1/commerce/sales/export.xlsx/?date=YYYY-MM-DD"""
+
+    permission_classes = [IsAuthenticated, IsSeller]
+
+    def get(self, request):
+        from io import BytesIO
+
+        from openpyxl import Workbook
+
+        date_str = request.query_params.get("date")
+        qs = Sale.objects.filter(seller=request.user).select_related("customer").order_by("-created_at")
+        if date_str:
+            qs = qs.filter(created_at__date=date_str)
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Ventes"
+        ws.append(
+            [
+                "ID",
+                "Date",
+                "Heure",
+                "Client",
+                "Articles",
+                "Paiement",
+                "Statut",
+                "Sous-total",
+                "Remise",
+                "Total",
+            ]
+        )
+        for sale in qs[:2000]:
+            ws.append(
+                [
+                    sale.id,
+                    sale.created_at.date().isoformat() if sale.created_at else "",
+                    sale.created_at.strftime("%H:%M") if sale.created_at else "",
+                    sale.customer.full_name if sale.customer else "",
+                    sale.items.count(),
+                    sale.payment_method,
+                    sale.status,
+                    float(sale.subtotal),
+                    float(sale.discount_amount),
+                    float(sale.total),
+                ]
+            )
+
+        buffer = BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        filename = f"tekisa-ventes-{date_str or 'all'}.xlsx"
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+
+class StockExportView(APIView):
+    """GET /api/v1/commerce/stock/export.xlsx/"""
+
+    permission_classes = [IsAuthenticated, IsSeller]
+
+    def get(self, request):
+        from io import BytesIO
+
+        from openpyxl import Workbook
+
+        products = Product.objects.filter(seller=request.user, is_active=True).order_by("name")
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Stock"
+        ws.append(
+            [
+                "ID",
+                "Nom",
+                "SKU",
+                "Prix unitaire",
+                "Stock",
+                "Seuil alerte",
+                "Categorie",
+            ]
+        )
+        for product in products:
+            ws.append(
+                [
+                    product.id,
+                    product.name,
+                    product.sku,
+                    float(product.unit_price),
+                    product.stock_quantity,
+                    product.reorder_threshold,
+                    product.category,
+                ]
+            )
+
+        buffer = BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = 'attachment; filename="tekisa-stock.xlsx"'
+        return response
+
+
+class SalesExportView(APIView):
+    """GET /api/v1/commerce/sales/export.xlsx/?date=YYYY-MM-DD"""
+
+    permission_classes = [IsAuthenticated, IsSeller]
+
+    def get(self, request):
+        from io import BytesIO
+
+        from openpyxl import Workbook
+
+        date_str = request.query_params.get("date")
+        qs = Sale.objects.filter(seller=request.user).select_related("customer").order_by("-created_at")
+        if date_str:
+            qs = qs.filter(created_at__date=date_str)
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Ventes"
+        ws.append(
+            [
+                "ID",
+                "Date",
+                "Heure",
+                "Client",
+                "Articles",
+                "Paiement",
+                "Statut",
+                "Sous-total",
+                "Remise",
+                "Total",
+            ]
+        )
+        for sale in qs[:2000]:
+            ws.append(
+                [
+                    sale.id,
+                    sale.created_at.date().isoformat() if sale.created_at else "",
+                    sale.created_at.strftime("%H:%M") if sale.created_at else "",
+                    sale.customer.full_name if sale.customer else "",
+                    sale.items.count(),
+                    sale.payment_method,
+                    sale.status,
+                    float(sale.subtotal),
+                    float(sale.discount_amount),
+                    float(sale.total),
+                ]
+            )
+
+        buffer = BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        filename = f"tekisa-ventes-{date_str or 'all'}.xlsx"
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+
+class StockExportView(APIView):
+    """GET /api/v1/commerce/stock/export.xlsx/"""
+
+    permission_classes = [IsAuthenticated, IsSeller]
+
+    def get(self, request):
+        from io import BytesIO
+
+        from openpyxl import Workbook
+
+        products = Product.objects.filter(seller=request.user, is_active=True).order_by("name")
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Stock"
+        ws.append(
+            [
+                "ID",
+                "Nom",
+                "SKU",
+                "Prix unitaire",
+                "Stock",
+                "Seuil alerte",
+                "Categorie",
+            ]
+        )
+        for product in products:
+            ws.append(
+                [
+                    product.id,
+                    product.name,
+                    product.sku,
+                    float(product.unit_price),
+                    product.stock_quantity,
+                    product.reorder_threshold,
+                    product.category,
+                ]
+            )
+
+        buffer = BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = 'attachment; filename="tekisa-stock.xlsx"'
+        return response

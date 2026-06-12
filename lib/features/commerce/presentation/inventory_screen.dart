@@ -7,6 +7,7 @@ import '../../../core/config/env_config.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../data/datasources/auth_local_datasource.dart';
 import '../../../data/datasources/commerce_remote_datasource.dart';
+import '../../../core/utils/file_export_helper.dart';
 import '../../../data/models/commerce_models.dart';
 import '../../auth/data/django_auth_service.dart';
 import '../../auth/presentation/auth_router.dart';
@@ -88,6 +89,31 @@ class _InventoryScreenState extends State<InventoryScreen> {
       saveAccessToken: (t) => _authLocal.setAccessToken(t),
     );
     return CommerceRemoteDataSource(client);
+  }
+
+  Future<void> _exportStock() async {
+    final source = await _source();
+    if (source == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connexion requise pour exporter.')),
+      );
+      return;
+    }
+    try {
+      final bytes = await source.downloadStockExport();
+      await FileExportHelper.shareBytes(
+        bytes: bytes,
+        filename: 'tekisa-stock.xlsx',
+        mimeType:
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
   }
 
   Future<void> _load() async {
@@ -730,6 +756,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
       appBar: AppBar(
         title: Text(_profile.inventoryTitle),
         actions: [
+          IconButton(
+            onPressed: _exportStock,
+            icon: const Icon(Icons.table_chart_outlined),
+            tooltip: 'Exporter Excel',
+          ),
           IconButton(
             onPressed: _openSettings,
             icon: const Icon(Icons.settings_outlined),
