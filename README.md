@@ -1,6 +1,8 @@
-# Tekisa
+# Tekisa (Kekisa)
 
 Application de gestion commerciale (ventes, stock, clients, fournisseurs) — **Flutter** (mobile / web) + **API Django**.
+
+**Dépôt :** [github.com/Mavuisra/kekisa](https://github.com/Mavuisra/kekisa)
 
 ## Prérequis
 
